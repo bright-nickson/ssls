@@ -12,6 +12,7 @@ class FileShareHub {
 
     init() {
         this.loadFilesFromStorage();
+        this.loadStaticFiles();
         this.checkAdminStatus();
         this.setupEventListeners();
         this.updateUI();
@@ -204,6 +205,15 @@ class FileShareHub {
     }
 
     deleteFile(fileId) {
+        const file = this.files.find(f => f.id === fileId);
+        if (!file) return;
+
+        // Prevent deletion of static files
+        if (file.isStatic) {
+            this.showToast('Cannot delete static files', 'error');
+            return;
+        }
+
         if (confirm('Are you sure you want to delete this file?')) {
             this.files = this.files.filter(file => file.id !== fileId);
             this.saveFilesToStorage();
@@ -216,14 +226,28 @@ class FileShareHub {
         const file = this.files.find(f => f.id === fileId);
         if (!file) return;
 
-        const link = document.createElement('a');
-        link.href = file.data;
-        link.download = file.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        this.showToast(`Downloading "${file.name}"`, 'info');
+        if (file.isStatic) {
+            // Static files are downloaded via direct URL
+            const link = document.createElement('a');
+            link.href = `slides/${encodeURIComponent(file.name)}`;
+            link.download = file.name;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            this.showToast(`Downloading "${file.name}"`, 'info');
+        } else {
+            // Regular uploaded files
+            const link = document.createElement('a');
+            link.href = file.data;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            this.showToast(`Downloading "${file.name}"`, 'info');
+        }
     }
 
     previewFile(fileId) {
@@ -378,11 +402,12 @@ class FileShareHub {
                     title="Download">
                 <i class="fas fa-download"></i>
             </button>
+            ${!file.isStatic ? `
             <button onclick="fileHub.deleteFile(${file.id})" 
                     class="flex-1 bg-red-50 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-100 transition-colors"
                     title="Delete">
                 <i class="fas fa-trash"></i>
-            </button>
+            </button>` : ''}
         ` : `
             <button onclick="fileHub.previewFile(${file.id})" 
                     class="flex-1 bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-100 transition-colors"
@@ -445,6 +470,47 @@ class FileShareHub {
             console.error('Failed to load files from storage:', e);
             this.files = [];
         }
+    }
+
+    loadStaticFiles() {
+        // Static files that are always available
+        const staticFiles = [
+            { name: 'Activity 1.docx', size: 13007, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'Activity 3.docx', size: 15716, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'Activity 4.docx', size: 17422, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'Activity 5.docx', size: 17081, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'Course structure.docx', size: 13995, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'NEW COURSE OUTLINE.docx', size: 24355, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'QUIZ 1.docx', size: 13176, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'QUIZ 2.docx', size: 13028, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'QUIZ 3.docx', size: 13183, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'Quiz 4.docx', size: 18134, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'Quiz 5.docx', size: 15883, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+            { name: 'WEEK 1 PPT.pptx', size: 1255085, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            { name: 'WEEK 2.pptx', size: 1065309, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            { name: 'WEEK 3 PPT.pptx', size: 67221, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            { name: 'Week 4.pptx', size: 741662, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            { name: 'Week 5.pptx', size: 60070, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }
+        ];
+
+        // Add static files to the beginning of the files array
+        staticFiles.forEach((file, index) => {
+            const staticFile = {
+                id: `static_${index}`,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                uploadDate: new Date().toISOString(),
+                data: null, // Static files don't have data, they're downloaded via URL
+                isStatic: true
+            };
+            
+            // Check if file already exists
+            const existingIndex = this.files.findIndex(f => f.name === file.name);
+            if (existingIndex === -1) {
+                this.files.unshift(staticFile);
+            }
+        });
     }
 
     showToast(message, type = 'info') {
